@@ -1,3 +1,4 @@
+{% template main %}
 {% if trmnl.plugin_settings.custom_fields_values.timemode == '24_hour' %}
 {% assign mask_time = '%H:%M' %}
 {% assign mask_datetime = '%-m/%-d %H:%M' %}
@@ -29,15 +30,15 @@
 
     {%- comment -%} ACTIVE alerts: onset ≤ now ≤ ends {%- endcomment -%}
     <div class="column">
-      <div class="list"
+      <div class="list {% if active_count == 0 %}flex flex--center-x flex--center-y h--full{% endif %}"
         data-list-limit="true"
         data-list-max-height="340"
         data-list-hidden-count="true"
         data-list-max-columns="1">
-        <span class="label">Active</span>
-
         {% if active_count == 0 %}
           <span class="label label--gray-out">No Active Alerts</span>
+        {% else %}
+          <span class="label">Active</span>
         {% endif %}
 
         {% for alert in features %}
@@ -69,18 +70,24 @@
           {% endif %}
           {% endfor %}
       </div>
+    {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
+    </div>
+    {% endif %}
 
     {%- comment -%} UPCOMING alerts: onset > now {%- endcomment -%}
     {% if include_future %}
-      <div class="list"
+    {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
+    <div class="column">
+    {% endif %}
+      <div class="list {% if upcoming_count == 0 %}flex flex--center-x flex--center-y h--full{% endif %}"
         data-list-limit="true"
         data-list-max-height="340"
         data-list-hidden-count="true"
         data-list-max-columns="1">
-        <span class="label">Upcoming</span>
-
         {% if upcoming_count == 0 %}
           <span class="label label--gray-out">No Upcoming Alerts</span>
+        {% else %}
+          <span class="label">Upcoming</span>
         {% endif %}
 
         {% for alert in features %}
@@ -111,6 +118,12 @@
         {% endif %}
         {% endfor %}
       </div>
+    {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% if layout_style == 'quadrant' or layout_style == 'half-vertical' %}
     </div>
     {% endif %}
 
@@ -119,7 +132,11 @@
 
 <div class="title_bar">
   <img class="image" class="image-dither" src="https://www.weather.gov/images/nws/nws_logo.png">
+  {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
+  <span class="title">{{ trmnl.plugin_settings.instance_name }}</span>
+  {% endif %}
   <span class="instance">
     Updated {{ updated_iso | l_date: mask_datetime, trmnl.user.locale }}
   </span>
 </div>
+{% endtemplate %}
