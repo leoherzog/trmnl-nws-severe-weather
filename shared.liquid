@@ -3,11 +3,11 @@
 {% assign mask_time = '%H:%M' %}
 {% assign mask_datetime = '%-m/%-d %H:%M' %}
 {% else %}
-{% assign mask_time = '%-I:%M%P' %} 
+{% assign mask_time = '%-I:%M%P' %}
 {% assign mask_datetime = '%-m/%-d %-I:%M%P' %}
 {% endif %}
 
-{% assign now_local = trmnl.system.timestamp_utc 
+{% assign now_local = trmnl.system.timestamp_utc
 | plus: trmnl.user.utc_offset %}
 {% assign include_future = trmnl.plugin_settings.custom_fields_values.includefuture == 'true' %}
 {% assign updated_iso = updated | date: "%s" | plus: trmnl.user.utc_offset | date: "%Y-%m-%dT%H:%M:%S%z" %}
@@ -18,109 +18,125 @@
   {% assign onset_local = alert.properties.onset | date: "%s" | plus: trmnl.user.utc_offset %}
   {% assign ends_local = alert.properties.ends  | date: "%s" | plus: trmnl.user.utc_offset %}
   {% if now_local >= onset_local and now_local <= ends_local %}
-    {% assign active_count = active_count | plus: 1 %}  
+    {% assign active_count = active_count | plus: 1 %}
   {% elsif onset_local > now_local %}
-    {% assign upcoming_count = upcoming_count | plus: 1 %}  
+    {% assign upcoming_count = upcoming_count | plus: 1 %}
   {% endif %}
 {% endfor %}
 
+{% assign show_upcoming = false %}
+{% if include_future and upcoming_count > 0 %}
+  {% assign show_upcoming = true %}
+{% endif %}
 
+
+{% if active_count == 0 and show_upcoming == false %}
+{%- comment -%} Empty state: no alerts to display {%- endcomment -%}
+<div class="layout">
+  <div class="columns h--full">
+    <div class="column flex flex--center-x flex--center-y h--full text--center">
+      <span class="label label--gray-out">No Active{% if include_future %} or Upcoming{% endif %}<br>Severe Weather Alerts</span>
+    </div>
+  </div>
+</div>
+
+{% else %}
 <div class="layout">
   <div class="columns h--full">
 
-    {%- comment -%} ACTIVE alerts: onset ≤ now ≤ ends {%- endcomment -%}
+    {% if layout_style == 'quadrant' or layout_style == 'half-vertical' %}
     <div class="column">
-      <div class="list {% if active_count == 0 %}flex flex--center-x flex--center-y h--full{% endif %}"
-        data-list-limit="true"
-        data-list-max-height="340"
-        data-list-hidden-count="true"
-        data-list-max-columns="1">
-        {% if active_count == 0 %}
-          <span class="label label--gray-out">No Active Alerts</span>
-        {% else %}
+    {% endif %}
+
+    {%- comment -%} ACTIVE alerts: onset ≤ now ≤ ends {%- endcomment -%}
+    {% if active_count > 0 %}
+      {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
+      <div class="column">
+      {% endif %}
+        <div class="list"
+          data-list-limit="true"
+          data-list-max-height="340"
+          data-list-hidden-count="true"
+          data-list-max-columns="1">
           <span class="label">Active</span>
-        {% endif %}
 
-        {% for alert in features %}
-        {% assign onset_local = alert.properties.onset | date: "%s" | plus: trmnl.user.utc_offset %}
-        {% assign ends_local  = alert.properties.ends  | date: "%s" | plus: trmnl.user.utc_offset %}
+          {% for alert in features %}
+          {% assign onset_local = alert.properties.onset | date: "%s" | plus: trmnl.user.utc_offset %}
+          {% assign ends_local  = alert.properties.ends  | date: "%s" | plus: trmnl.user.utc_offset %}
 
-        {% if now_local >= onset_local and now_local <= ends_local %}
+          {% if now_local >= onset_local and now_local <= ends_local %}
+            <div class="item">
+              <div class="meta"></div>
+              <div class="content">
+                <div class="row flex--center-y">
+                  <span class="title title--small">{{ alert.properties.event }}</span>
+                  <span class="label label--small label--inverted">
+                    {{ alert.properties.severity }}
+                  </span>
+                </div>
+                <span class="description clamp--2">
+                  {{ alert.properties.description }}
+                </span>
+                <div class="flex gap--small">
+                  <span class="label label--small label--underline">
+                    {{ alert.properties.onset | l_date: mask_time, trmnl.user.locale }}
+                    –
+                    {{ alert.properties.ends  | l_date: mask_time, trmnl.user.locale }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
+      </div>
+      {% endif %}
+    {% endif %}
+
+    {%- comment -%} UPCOMING alerts: onset > now {%- endcomment -%}
+    {% if show_upcoming %}
+      {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
+      <div class="column">
+      {% endif %}
+        <div class="list"
+          data-list-limit="true"
+          data-list-max-height="340"
+          data-list-hidden-count="true"
+          data-list-max-columns="1">
+          <span class="label">Upcoming</span>
+
+          {% for alert in features %}
+          {% assign onset_local = alert.properties.onset | date: "%s" | plus: trmnl.user.utc_offset %}
+
+          {% if onset_local > now_local %}
           <div class="item">
             <div class="meta"></div>
             <div class="content">
-              <div class="row">
+              <div class="row flex--center-y">
                 <span class="title title--small">{{ alert.properties.event }}</span>
                 <span class="label label--small label--inverted">
                   {{ alert.properties.severity }}
                 </span>
               </div>
               <span class="description clamp--2">
-                {{ alert.properties.description | newline_to_br }}
+                {{ alert.properties.description }}
               </span>
               <div class="flex gap--small">
                 <span class="label label--small label--underline">
-                  {{ alert.properties.onset | l_date: mask_time, trmnl.user.locale }}
+                  {{ alert.properties.onset | l_date: mask_datetime, trmnl.user.locale }}
                   –
-                  {{ alert.properties.ends  | l_date: mask_time, trmnl.user.locale }}
+                  {{ alert.properties.ends  | l_date: mask_datetime, trmnl.user.locale }}
                 </span>
               </div>
             </div>
           </div>
           {% endif %}
           {% endfor %}
-      </div>
-    {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
-    </div>
-    {% endif %}
-
-    {%- comment -%} UPCOMING alerts: onset > now {%- endcomment -%}
-    {% if include_future %}
-    {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
-    <div class="column">
-    {% endif %}
-      <div class="list {% if upcoming_count == 0 %}flex flex--center-x flex--center-y h--full{% endif %}"
-        data-list-limit="true"
-        data-list-max-height="340"
-        data-list-hidden-count="true"
-        data-list-max-columns="1">
-        {% if upcoming_count == 0 %}
-          <span class="label label--gray-out">No Upcoming Alerts</span>
-        {% else %}
-          <span class="label">Upcoming</span>
-        {% endif %}
-
-        {% for alert in features %}
-        {% assign onset_local = alert.properties.onset | date: "%s" | plus: trmnl.user.utc_offset %}
-
-        {% if onset_local > now_local %}
-        <div class="item">
-          <div class="meta"></div>
-          <div class="content">
-            <div class="row">
-              <span class="title title--small">{{ alert.properties.event }}</span>
-              <span class="label label--small label--inverted">
-                {{ alert.properties.severity }}
-              </span>
-            </div>
-            <span class="description clamp--2">
-              {{ alert.properties.description | newline_to_br }}
-            </span>
-            <div class="flex gap--small">
-              <span class="label label--small label--underline">
-                {{ alert.properties.onset | l_date: mask_datetime, trmnl.user.locale }}
-                –
-                {{ alert.properties.ends  | l_date: mask_datetime, trmnl.user.locale }}
-              </span>
-            </div>
-          </div>
         </div>
-        {% endif %}
-        {% endfor %}
+      {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
       </div>
-    {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
-    </div>
-    {% endif %}
+      {% endif %}
     {% endif %}
 
     {% if layout_style == 'quadrant' or layout_style == 'half-vertical' %}
@@ -129,6 +145,7 @@
 
   </div>
 </div>
+{% endif %}
 
 <div class="title_bar">
   <img class="image" class="image-dither" src="https://www.weather.gov/images/nws/nws_logo.png">
