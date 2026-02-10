@@ -35,7 +35,7 @@
 <div class="layout">
   <div class="columns h--full">
     <div class="column flex flex--center-x flex--center-y h--full text--center">
-      <span class="label label--gray-out">No Active{% if include_future %} or Upcoming{% endif %}<br>Severe Weather Alerts</span>
+      <span class="label label--gray-out">No Active{% if trmnl.plugin_settings.custom_fields_values.includefuture == 'true' %} or Upcoming{% endif %}<br>Severe Weather Alerts</span>
     </div>
   </div>
 </div>
