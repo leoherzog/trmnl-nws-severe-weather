@@ -32,17 +32,13 @@
 
 {% if active_count == 0 and show_upcoming == false %}
 {%- comment -%} Empty state: no alerts to display {%- endcomment -%}
-<div class="layout">
-  <div class="columns h--full">
-    <div class="column flex flex--center-x flex--center-y h--full text--center">
-      <span class="label label--gray-out">No Active{% if trmnl.plugin_settings.custom_fields_values.includefuture == 'true' %} or Upcoming{% endif %}<br>Severe Weather Alerts</span>
-    </div>
-  </div>
+<div class="layout layout--center">
+  <span class="label label--gray lg:label--large text--center">No Active{% if trmnl.plugin_settings.custom_fields_values.includefuture == 'true' %} or Upcoming{% endif %}<br>Severe Weather Alerts</span>
 </div>
 
 {% else %}
 <div class="layout">
-  <div class="columns h--full">
+  <div class="columns h--full" data-overflow="true" data-overflow-max-cols="1" data-overflow-counter="true">
 
     {% if layout_style == 'quadrant' or layout_style == 'half-vertical' %}
     <div class="column">
@@ -53,42 +49,45 @@
       {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
       <div class="column">
       {% endif %}
-        <div class="list"
-          data-list-limit="true"
-          data-list-max-height="340"
-          data-list-hidden-count="true"
-          data-list-max-columns="1">
-          <span class="label">Active</span>
+        <span class="label lg:label--large">Active</span>
 
-          {% for alert in features %}
-          {% assign onset_local = alert.properties.onset | date: "%s" | plus: trmnl.user.utc_offset %}
-          {% assign ends_local  = alert.properties.ends  | date: "%s" | plus: trmnl.user.utc_offset %}
+        {% for alert in features %}
+        {% assign onset_local = alert.properties.onset | date: "%s" | plus: trmnl.user.utc_offset %}
+        {% assign ends_local  = alert.properties.ends  | date: "%s" | plus: trmnl.user.utc_offset %}
 
-          {% if now_local >= onset_local and now_local <= ends_local %}
-            <div class="item">
-              <div class="meta"></div>
-              <div class="content">
-                <div class="row flex--center-y">
-                  <span class="title title--small">{{ alert.properties.event }}</span>
-                  <span class="label label--small label--inverted">
-                    {{ alert.properties.severity }}
-                  </span>
-                </div>
-                <span class="description clamp--2">
-                  {{ alert.properties.description }}
+        {% if now_local >= onset_local and now_local <= ends_local %}
+          {% assign emphasis = '' %}
+          {% if alert.properties.severity == 'Extreme' %}
+            {% assign emphasis = ' item--emphasis-3' %}
+          {% elsif alert.properties.severity == 'Severe' %}
+            {% assign emphasis = ' item--emphasis-2' %}
+          {% elsif alert.properties.severity == 'Moderate' %}
+            {% assign emphasis = ' item--emphasis-1' %}
+          {% endif %}
+          <div class="item{{ emphasis }}">
+            <div class="meta"></div>
+            <div class="content">
+              <div class="flex flex--row flex--center-y">
+                <span class="title title--small lg:title--base">{{ alert.properties.event }}</span>
+                <span class="label label--small 1bit:label--inverted 2bit:label--inverted 4bit:label--outline">
+                  {{ alert.properties.severity }}
                 </span>
-                <div class="flex gap--small">
-                  <span class="label label--small label--underline">
-                    {{ alert.properties.onset | l_date: mask_time, trmnl.user.locale }}
-                    –
-                    {{ alert.properties.ends  | l_date: mask_time, trmnl.user.locale }}
-                  </span>
-                </div>
+              </div>
+              <span class="description lg:description--large" data-clamp="2">
+                {{ alert.properties.description }}
+              </span>
+              <div class="flex gap--small">
+                <span class="label label--small label--underline">
+                  {{ alert.properties.onset | l_date: mask_time, trmnl.user.locale }}
+                  –
+                  {{ alert.properties.ends  | l_date: mask_time, trmnl.user.locale }}
+                </span>
               </div>
             </div>
-          {% endif %}
-          {% endfor %}
-        </div>
+          </div>
+        {% endif %}
+        {% endfor %}
+
       {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
       </div>
       {% endif %}
@@ -99,27 +98,30 @@
       {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
       <div class="column">
       {% endif %}
-        <div class="list"
-          data-list-limit="true"
-          data-list-max-height="340"
-          data-list-hidden-count="true"
-          data-list-max-columns="1">
-          <span class="label">Upcoming</span>
+        <span class="label lg:label--large">Upcoming</span>
 
-          {% for alert in features %}
-          {% assign onset_local = alert.properties.onset | date: "%s" | plus: trmnl.user.utc_offset %}
+        {% for alert in features %}
+        {% assign onset_local = alert.properties.onset | date: "%s" | plus: trmnl.user.utc_offset %}
 
-          {% if onset_local > now_local %}
-          <div class="item">
+        {% if onset_local > now_local %}
+          {% assign emphasis = '' %}
+          {% if alert.properties.severity == 'Extreme' %}
+            {% assign emphasis = ' item--emphasis-3' %}
+          {% elsif alert.properties.severity == 'Severe' %}
+            {% assign emphasis = ' item--emphasis-2' %}
+          {% elsif alert.properties.severity == 'Moderate' %}
+            {% assign emphasis = ' item--emphasis-1' %}
+          {% endif %}
+          <div class="item{{ emphasis }}">
             <div class="meta"></div>
             <div class="content">
-              <div class="row flex--center-y">
-                <span class="title title--small">{{ alert.properties.event }}</span>
-                <span class="label label--small label--inverted">
+              <div class="flex flex--row flex--center-y">
+                <span class="title title--small lg:title--base">{{ alert.properties.event }}</span>
+                <span class="label label--small 1bit:label--inverted 2bit:label--inverted 4bit:label--outline">
                   {{ alert.properties.severity }}
                 </span>
               </div>
-              <span class="description clamp--2">
+              <span class="description lg:description--large" data-clamp="2">
                 {{ alert.properties.description }}
               </span>
               <div class="flex gap--small">
@@ -131,9 +133,9 @@
               </div>
             </div>
           </div>
-          {% endif %}
-          {% endfor %}
-        </div>
+        {% endif %}
+        {% endfor %}
+
       {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
       </div>
       {% endif %}
@@ -148,7 +150,7 @@
 {% endif %}
 
 <div class="title_bar">
-  <img class="image" class="image-dither" src="https://www.weather.gov/images/nws/nws_logo.png">
+  <img class="image image-dither" src="https://www.weather.gov/images/nws/nws_logo.png">
   {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
   <span class="title">{{ trmnl.plugin_settings.instance_name }}</span>
   {% endif %}
