@@ -16,7 +16,8 @@
 {% assign upcoming_count = 0 %}
 {% for alert in features %}
   {% assign onset_local = alert.properties.onset | date: "%s" | plus: trmnl.user.utc_offset %}
-  {% assign ends_local = alert.properties.ends  | date: "%s" | plus: trmnl.user.utc_offset %}
+  {% assign end_raw = alert.properties.ends | default: alert.properties.expires %}
+  {% assign ends_local = end_raw | date: "%s" | plus: trmnl.user.utc_offset %}
   {% if now_local >= onset_local and now_local <= ends_local %}
     {% assign active_count = active_count | plus: 1 %}
   {% elsif onset_local > now_local %}
@@ -33,27 +34,22 @@
 {% if active_count == 0 and show_upcoming == false %}
 {%- comment -%} Empty state: no alerts to display {%- endcomment -%}
 <div class="layout layout--center">
-  <span class="label label--gray lg:label--large text--center">No Active{% if trmnl.plugin_settings.custom_fields_values.includefuture == 'true' %} or Upcoming{% endif %}<br>Severe Weather Alerts</span>
+  <span class="label label--gray lg:label--xlarge text--center">No Active{% if trmnl.plugin_settings.custom_fields_values.includefuture == 'true' %} or Upcoming{% endif %}<br>Severe Weather Alerts</span>
 </div>
 
 {% else %}
 <div class="layout">
-  <div class="columns h--full" data-overflow="true" data-overflow-max-cols="1" data-overflow-counter="true">
-
-    {% if layout_style == 'quadrant' or layout_style == 'half-vertical' %}
+  <div class="columns h--full" data-overflow="true" data-overflow-max-cols="1" data-overflow-max-cols-lg="2" data-overflow-max-cols-portrait="1" data-overflow-counter="true">
     <div class="column">
-    {% endif %}
 
-    {%- comment -%} ACTIVE alerts: onset ≤ now ≤ ends {%- endcomment -%}
-    {% if active_count > 0 %}
-      {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
-      <div class="column">
-      {% endif %}
+      {%- comment -%} ACTIVE alerts: onset ≤ now ≤ ends {%- endcomment -%}
+      {% if active_count > 0 %}
         <span class="label lg:label--large">Active</span>
 
         {% for alert in features %}
         {% assign onset_local = alert.properties.onset | date: "%s" | plus: trmnl.user.utc_offset %}
-        {% assign ends_local  = alert.properties.ends  | date: "%s" | plus: trmnl.user.utc_offset %}
+        {% assign end_raw = alert.properties.ends | default: alert.properties.expires %}
+        {% assign ends_local = end_raw | date: "%s" | plus: trmnl.user.utc_offset %}
 
         {% if now_local >= onset_local and now_local <= ends_local %}
           {% assign emphasis = '' %}
@@ -73,37 +69,31 @@
                   {{ alert.properties.severity }}
                 </span>
               </div>
-              <span class="description lg:description--large" data-clamp="2">
+              <span class="description lg:description--large" data-clamp="2" data-clamp-lg="3">
                 {{ alert.properties.description }}
               </span>
               <div class="flex gap--small">
                 <span class="label label--small label--underline">
                   {{ alert.properties.onset | l_date: mask_time, trmnl.user.locale }}
                   –
-                  {{ alert.properties.ends  | l_date: mask_time, trmnl.user.locale }}
+                  {{ end_raw | l_date: mask_time, trmnl.user.locale }}
                 </span>
               </div>
             </div>
           </div>
         {% endif %}
         {% endfor %}
-
-      {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
-      </div>
       {% endif %}
-    {% endif %}
 
-    {%- comment -%} UPCOMING alerts: onset > now {%- endcomment -%}
-    {% if show_upcoming %}
-      {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
-      <div class="column">
-      {% endif %}
+      {%- comment -%} UPCOMING alerts: onset > now {%- endcomment -%}
+      {% if show_upcoming %}
         <span class="label lg:label--large">Upcoming</span>
 
         {% for alert in features %}
         {% assign onset_local = alert.properties.onset | date: "%s" | plus: trmnl.user.utc_offset %}
 
         {% if onset_local > now_local %}
+          {% assign end_raw = alert.properties.ends | default: alert.properties.expires %}
           {% assign emphasis = '' %}
           {% if alert.properties.severity == 'Extreme' %}
             {% assign emphasis = ' item--emphasis-3' %}
@@ -121,30 +111,23 @@
                   {{ alert.properties.severity }}
                 </span>
               </div>
-              <span class="description lg:description--large" data-clamp="2">
+              <span class="description lg:description--large" data-clamp="2" data-clamp-lg="3">
                 {{ alert.properties.description }}
               </span>
               <div class="flex gap--small">
                 <span class="label label--small label--underline">
                   {{ alert.properties.onset | l_date: mask_datetime, trmnl.user.locale }}
                   –
-                  {{ alert.properties.ends  | l_date: mask_datetime, trmnl.user.locale }}
+                  {{ end_raw | l_date: mask_datetime, trmnl.user.locale }}
                 </span>
               </div>
             </div>
           </div>
         {% endif %}
         {% endfor %}
-
-      {% if layout_style == 'full' or layout_style == 'half-horizontal' %}
-      </div>
       {% endif %}
-    {% endif %}
 
-    {% if layout_style == 'quadrant' or layout_style == 'half-vertical' %}
     </div>
-    {% endif %}
-
   </div>
 </div>
 {% endif %}
