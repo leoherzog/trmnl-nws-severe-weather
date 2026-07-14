@@ -1,26 +1,22 @@
 {% template main %}
 {% if trmnl.plugin_settings.custom_fields_values.timemode == '24_hour' %}
-{% assign mask_time = '%H:%M' %}
-{% assign mask_datetime = '%-m/%-d %H:%M' %}
+{% assign hour12 = 'false' %}
 {% else %}
-{% assign mask_time = '%-I:%M%P' %}
-{% assign mask_datetime = '%-m/%-d %-I:%M%P' %}
+{% assign hour12 = 'true' %}
 {% endif %}
 
-{% assign now_local = trmnl.system.timestamp_utc
-| plus: trmnl.user.utc_offset %}
+{% assign now = trmnl.system.timestamp_utc | plus: 0 %}
 {% assign include_future = trmnl.plugin_settings.custom_fields_values.includefuture == 'true' %}
-{% assign updated_iso = updated | date: "%s" | plus: trmnl.user.utc_offset | date: "%Y-%m-%dT%H:%M:%S%z" %}
 
 {% assign active_count = 0 %}
 {% assign upcoming_count = 0 %}
 {% for alert in features %}
-  {% assign onset_local = alert.properties.onset | date: "%s" | plus: trmnl.user.utc_offset %}
+  {% assign onset_ts = alert.properties.onset | date: "%s" | plus: 0 %}
   {% assign end_raw = alert.properties.ends | default: alert.properties.expires %}
-  {% assign ends_local = end_raw | date: "%s" | plus: trmnl.user.utc_offset %}
-  {% if now_local >= onset_local and now_local <= ends_local %}
+  {% assign ends_ts = end_raw | date: "%s" | plus: 0 %}
+  {% if now >= onset_ts and now <= ends_ts %}
     {% assign active_count = active_count | plus: 1 %}
-  {% elsif onset_local > now_local %}
+  {% elsif onset_ts > now %}
     {% assign upcoming_count = upcoming_count | plus: 1 %}
   {% endif %}
 {% endfor %}
@@ -47,11 +43,11 @@
         <span class="label lg:label--large">Active</span>
 
         {% for alert in features %}
-        {% assign onset_local = alert.properties.onset | date: "%s" | plus: trmnl.user.utc_offset %}
+        {% assign onset_ts = alert.properties.onset | date: "%s" | plus: 0 %}
         {% assign end_raw = alert.properties.ends | default: alert.properties.expires %}
-        {% assign ends_local = end_raw | date: "%s" | plus: trmnl.user.utc_offset %}
-        {% if now_local >= onset_local and now_local <= ends_local %}
-          {% render 'alert_item', alert: alert, date_mask: mask_time %}
+        {% assign ends_ts = end_raw | date: "%s" | plus: 0 %}
+        {% if now >= onset_ts and now <= ends_ts %}
+          {% render 'alert_item', alert: alert, date_style: 'time' %}
         {% endif %}
         {% endfor %}
       {% endif %}
@@ -61,9 +57,9 @@
         <span class="label lg:label--large">Upcoming</span>
 
         {% for alert in features %}
-        {% assign onset_local = alert.properties.onset | date: "%s" | plus: trmnl.user.utc_offset %}
-        {% if onset_local > now_local %}
-          {% render 'alert_item', alert: alert, date_mask: mask_datetime %}
+        {% assign onset_ts = alert.properties.onset | date: "%s" | plus: 0 %}
+        {% if onset_ts > now %}
+          {% render 'alert_item', alert: alert, date_style: 'datetime' %}
         {% endif %}
         {% endfor %}
       {% endif %}
@@ -80,10 +76,37 @@
   {% endif %}
   {% if updated %}
   <span class="instance">
-    Updated {{ updated_iso | l_date: mask_datetime, trmnl.user.locale }}
+    Updated <span data-dt="{{ updated | date: '%s' }}" data-dt-style="datetime"></span>
   </span>
   {% endif %}
 </div>
+
+<script>
+(function () {
+  var locale = '{{ trmnl.user.locale }}' || undefined;
+  var timeZone = '{{ trmnl.user.time_zone_iana }}' || undefined;
+  var hour12 = {{ hour12 }};
+  function formatter(opts) {
+    opts.hour12 = hour12;
+    try {
+      return new Intl.DateTimeFormat(locale, Object.assign({ timeZone: timeZone }, opts));
+    } catch (e) {
+      {%- comment -%} Invalid locale or timezone: fall back to render-environment defaults {%- endcomment -%}
+      return new Intl.DateTimeFormat(undefined, opts);
+    }
+  }
+  var formats = {
+    time: formatter({ hour: 'numeric', minute: '2-digit' }),
+    datetime: formatter({ month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  };
+  document.querySelectorAll('[data-dt]').forEach(function (el) {
+    var seconds = parseInt(el.getAttribute('data-dt'), 10);
+    if (!seconds) return;
+    var format = formats[el.getAttribute('data-dt-style')] || formats.datetime;
+    el.textContent = format.format(new Date(seconds * 1000));
+  });
+})();
+</script>
 {% endtemplate %}
 
 {% template alert_item %}
@@ -91,7 +114,7 @@
 Renders a single NWS alert card.
 Parameters:
 - alert: a feature object from the NWS GeoJSON features array
-- date_mask: l_date mask used for the onset–end time range (mask_time for active, mask_datetime for upcoming)
+- date_style: Intl format style for the onset–end range ('time' for active, 'datetime' for upcoming)
 {%- endcomment -%}
 {% assign end_raw = alert.properties.ends | default: alert.properties.expires %}
 <div class="item">
@@ -108,9 +131,9 @@ Parameters:
     </span>
     <div class="flex gap--small">
       <span class="label label--small label--underline">
-        {{ alert.properties.onset | l_date: date_mask, trmnl.user.locale }}
+        <span data-dt="{{ alert.properties.onset | date: '%s' }}" data-dt-style="{{ date_style }}"></span>
         –
-        {{ end_raw | l_date: date_mask, trmnl.user.locale }}
+        <span data-dt="{{ end_raw | date: '%s' }}" data-dt-style="{{ date_style }}"></span>
       </span>
     </div>
   </div>

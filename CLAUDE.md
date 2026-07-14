@@ -11,8 +11,8 @@ This is a TRMNL plugin for displaying National Weather Service (NWS) severe weat
 The project consists of `.liquid` files. All rendering logic lives in `shared.liquid`; the four size files are thin wrappers that `{% render 'main', ... %}` with a `layout_style` argument so every size shares one source of truth.
 
 - **shared.liquid**: Defines two `{% template %}` partials:
-  - `main` — assigns time masks, categorizes alerts (active vs upcoming), renders the list, and the `title_bar`.
-  - `alert_item` — renders a single alert card; called from both the active and upcoming loops with a `date_mask` parameter (`mask_time` for active, `mask_datetime` for upcoming).
+  - `main` — categorizes alerts (active vs upcoming), renders the list, the `title_bar`, and a `<script>` that formats all timestamps client-side.
+  - `alert_item` — renders a single alert card; called from both the active and upcoming loops with a `date_style` parameter (`'time'` for active, `'datetime'` for upcoming).
 - **full.liquid**: `layout_style: 'full'` — two-column overflow list (active above upcoming).
 - **half-horizontal.liquid**: `layout_style: 'half-horizontal'`.
 - **half-vertical.liquid**: `layout_style: 'half-vertical'`.
@@ -22,11 +22,10 @@ The project consists of `.liquid` files. All rendering logic lives in `shared.li
 
 Templates process NWS alert data with these key operations:
 
-1. **Time Format Handling**: Supports both 12-hour and 24-hour time formats based on `trmnl.plugin_settings.custom_fields_values.timemode`.
-2. **Alert Categorization**: Alerts are classified as:
+1. **Timestamp Display**: Liquid emits epoch seconds into `data-dt` attributes (`data-dt-style` picks the format); a `<script>` in `main` formats them with `Intl.DateTimeFormat` at render time. TRMNL screenshots the markup in a headless browser, so the script runs server-side. Locale comes from `trmnl.user.locale` (field order and separators adapt per region), timezone from `trmnl.user.time_zone_iana` (DST-correct), and 12/24-hour is forced via `hour12` from the `timemode` custom field. Invalid locale/timezone values fall back to render-environment defaults.
+2. **Alert Categorization**: Done in Liquid, comparing UTC epoch seconds (`trmnl.system.timestamp_utc` vs `onset`/`ends` piped through `date: "%s" | plus: 0` — the `plus: 0` coerces the string to a number):
    - Active: `onset ≤ now ≤ ends`
    - Upcoming: `onset > now` (only shown if `includefuture == 'true'`)
-3. **Timezone Conversion**: All times are shifted to the user's local timezone using `trmnl.user.utc_offset`.
 
 ## Data Structure
 
@@ -43,7 +42,7 @@ Uses TRMNL Liquid:
 - `{% assign variable = value %}` for variable assignment.
 - `{% for item in collection %}` for loops.
 - `{{ variable | filter }}` for output with filters.
-- Custom filter: `l_date` for locale-aware date formatting.
+- Timestamp display is done in JavaScript via `Intl.DateTimeFormat`, not Liquid date filters — see Key Data Processing above.
 
 ## Development Guidelines
 
