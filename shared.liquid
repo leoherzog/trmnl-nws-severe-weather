@@ -130,11 +130,14 @@
 
 (function () {
   {%- comment -%}
-  Grow description clamps to fill measured free space. Inline scripts run
-  before the framework clamp engine reads data-clamp, so we measure the real
-  container on whatever screen is rendering and raise each description's line
-  budget to divide the leftover height evenly. Only ever raises the baseline
-  (2 lines) — if anything here fails, today's behavior is unchanged.
+  Grow description clamps into leftover space. Inline scripts run before the
+  framework clamp engine reads data-clamp, so we can raise the line budgets it
+  will apply. Priority: every alert visible at its baseline clamp first —
+  expansion only distributes the pixels left over after that, one line at a
+  time round-robin, so a long alert can never push a later alert into the
+  overflow engine's "and N more". The height budget comes from the viewport
+  (the render browser is sized to the actual screen/slot), not from container
+  heights, which stretch with content. If anything fails, baseline applies.
   {%- endcomment -%}
   var container = document.querySelector('[data-overflow]');
   if (!container) return;
@@ -142,38 +145,61 @@
   var descs = Array.prototype.slice.call(container.querySelectorAll('.description[data-clamp]'));
   if (!column || !descs.length) return;
 
-  {%- comment -%} Columns the overflow engine may split into on this screen {%- endcomment -%}
-  var attr = 'data-overflow-max-cols';
-  var maxCols = container.getAttribute(attr);
-  if (window.innerWidth >= 1024 && container.hasAttribute(attr + '-lg')) maxCols = container.getAttribute(attr + '-lg');
-  if (window.innerHeight > window.innerWidth && container.hasAttribute(attr + '-portrait')) maxCols = container.getAttribute(attr + '-portrait');
-  var cols = Math.max(1, Math.min(parseInt(maxCols, 10) || 1, descs.length));
+  {%- comment -%} True vertical budget: viewport minus everything above the list and the title_bar below it {%- endcomment -%}
+  var bar = document.querySelector('.title_bar');
+  var available = document.documentElement.clientHeight
+    - container.getBoundingClientRect().top
+    - (bar ? bar.offsetHeight : 0)
+    - 24;
+  if (available <= 0) return;
 
-  {%- comment -%} Content height with descriptions at natural (unclamped) size {%- endcomment -%}
+  {%- comment -%} Per-description metrics: line height, natural (unclamped) lines, baseline lines {%- endcomment -%}
+  var lineHs = [], naturalLines = [], baseLines = [];
+  descs.forEach(function (el) {
+    var style = getComputedStyle(el);
+    var lineH = parseFloat(style.lineHeight) || (parseFloat(style.fontSize) * 1.4) || 20;
+    var base = parseInt(el.getAttribute('data-clamp'), 10) || 2;
+    ['-sm', '-md', '-lg', '-portrait', '-md-portrait'].forEach(function (suffix) {
+      var v = parseInt(el.getAttribute('data-clamp' + suffix), 10);
+      if (v > base) base = v;
+    });
+    lineHs.push(lineH);
+    naturalLines.push(Math.ceil(el.offsetHeight / lineH));
+    baseLines.push(base);
+  });
+
+  {%- comment -%} Height of all content with every description at its baseline clamp {%- endcomment -%}
   var children = Array.prototype.slice.call(column.children);
   var contentPx = 0;
   children.forEach(function (c) { contentPx += c.offsetHeight; });
   var rowGap = parseFloat(getComputedStyle(column).rowGap) || 0;
   contentPx += rowGap * Math.max(0, children.length - 1);
+  descs.forEach(function (el, i) {
+    var shownLines = Math.min(naturalLines[i], baseLines[i]);
+    contentPx -= el.offsetHeight - shownLines * lineHs[i];
+  });
 
-  var descPx = 0;
-  descs.forEach(function (el) { descPx += el.offsetHeight; });
-  if (!descPx) return;
+  {%- comment -%} Round-robin: reveal one more line at a time while free pixels remain {%- endcomment -%}
+  var freePx = available - contentPx;
+  var extra = descs.map(function () { return 0; });
+  var progress = true, guard = 0;
+  while (progress && guard++ < 500) {
+    progress = false;
+    descs.forEach(function (el, i) {
+      if (freePx >= lineHs[i] && baseLines[i] + extra[i] < naturalLines[i]) {
+        extra[i]++;
+        freePx -= lineHs[i];
+        progress = true;
+      }
+    });
+  }
 
-  {%- comment -%} Pixels available for description text across all columns, minus a safety margin {%- endcomment -%}
-  var budget = container.clientHeight * cols - (contentPx - descPx) - 16;
-  if (budget <= 0) return;
-  var perDesc = budget / descs.length;
-
-  descs.forEach(function (el) {
-    var style = getComputedStyle(el);
-    var lineH = parseFloat(style.lineHeight) || (parseFloat(style.fontSize) * 1.4) || 20;
-    var lines = Math.floor(perDesc / lineH);
-    var current = parseInt(el.getAttribute('data-clamp'), 10) || 2;
-    if (lines <= current) return;
-    el.setAttribute('data-clamp', String(lines));
-    ['-sm', '-md', '-lg', '-portrait', '-md-portrait'].forEach(function (suffix) {
-      if (el.hasAttribute('data-clamp' + suffix)) el.setAttribute('data-clamp' + suffix, String(lines));
+  descs.forEach(function (el, i) {
+    if (!extra[i]) return;
+    ['', '-sm', '-md', '-lg', '-portrait', '-md-portrait'].forEach(function (suffix) {
+      var name = 'data-clamp' + suffix;
+      var v = parseInt(el.getAttribute(name), 10);
+      if (v) el.setAttribute(name, String(v + extra[i]));
     });
   });
 })();

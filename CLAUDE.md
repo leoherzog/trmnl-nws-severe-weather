@@ -26,13 +26,14 @@ Templates process NWS alert data with these key operations:
 2. **Alert Categorization**: Done in Liquid, comparing UTC epoch seconds (`trmnl.system.timestamp_utc` vs `onset`/`ends` piped through `date: "%s" | plus: 0` — the `plus: 0` coerces the string to a number):
    - Active: `onset ≤ now ≤ ends`
    - Upcoming: `onset > now` (only shown if `includefuture == 'true'`)
-3. **Dynamic Description Clamp**: descriptions carry a baseline `data-clamp="2"` (`3` on `lg:`). A second `<script>` IIFE in `main` runs before TRMNL's clamp engine initializes: it measures the actual rendered container height (so it adapts to any screen size — no hardcoded resolutions), subtracts the non-description overhead, divides the leftover pixels evenly, and raises each description's `data-clamp` attributes. It only ever raises the baseline; if measurement fails, behavior degrades to the 2-line clamp. The framework's overflow engine still hides whole items that don't fit.
+3. **Paragraph Normalization**: `alert_item` emits the raw NWS description text (plus `instruction` after a blank line, when present) inside the clamped `.description` span. A script IIFE in `main` splits `textContent` on blank lines, collapses NWS's ~70-char hard-wrap newlines into spaces, and rebuilds the block with `<br>` between paragraphs — so each `* WHAT/WHERE/WHEN` bullet starts on its own line.
+4. **Dynamic Description Clamp**: descriptions carry a baseline `data-clamp="2"` (`3` on `lg:`). A second script IIFE (after normalization, before TRMNL's clamp engine initializes) computes the vertical budget from the viewport height minus the title_bar (container heights stretch with content and must not be trusted), costs out all items at their *baseline* clamps, then hands out extra description lines one at a time round-robin while free pixels remain, capped at each description's natural length. Showing every alert at baseline always wins over expanding one alert — expansion can never push an alert into the overflow engine's "and N more". If measurement fails, the baseline clamp applies. Logic is regression-tested by stub-DOM tests (see git history for `logic_test2.js` scenarios).
 
 ## Data Structure
 
 The templates expect:
 - `features`: Array of alert objects from the NWS API GeoJSON response.
-- `alert.properties`: Contains `event`, `severity`, `description`, `onset`, and `ends` (falls back to `expires`).
+- `alert.properties`: Contains `event`, `severity`, `description`, `instruction` (optional), `onset`, and `ends` (falls back to `expires`).
 - `trmnl`: TRMNL system object with user settings and plugin configuration.
 - `updated`: Last update timestamp (guarded — the "Updated" line is omitted when absent).
 
