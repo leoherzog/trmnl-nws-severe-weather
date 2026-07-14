@@ -26,6 +26,7 @@ Templates process NWS alert data with these key operations:
 2. **Alert Categorization**: Done in Liquid, comparing UTC epoch seconds (`trmnl.system.timestamp_utc` vs `onset`/`ends` piped through `date: "%s" | plus: 0` — the `plus: 0` coerces the string to a number):
    - Active: `onset ≤ now ≤ ends`
    - Upcoming: `onset > now` (only shown if `includefuture == 'true'`)
+3. **Dynamic Description Clamp**: descriptions carry a baseline `data-clamp="2"` (`3` on `lg:`). A second `<script>` IIFE in `main` runs before TRMNL's clamp engine initializes: it measures the actual rendered container height (so it adapts to any screen size — no hardcoded resolutions), subtracts the non-description overhead, divides the leftover pixels evenly, and raises each description's `data-clamp` attributes. It only ever raises the baseline; if measurement fails, behavior degrades to the 2-line clamp. The framework's overflow engine still hides whole items that don't fit.
 
 ## Data Structure
 

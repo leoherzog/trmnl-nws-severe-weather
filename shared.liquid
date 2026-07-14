@@ -27,6 +27,7 @@
 {% endif %}
 
 
+
 {% if active_count == 0 and show_upcoming == false %}
 {%- comment -%} Empty state: no alerts to display {%- endcomment -%}
 <div class="layout layout--center">
@@ -106,6 +107,76 @@
     el.textContent = format.format(new Date(seconds * 1000));
   });
 })();
+
+(function () {
+  {%- comment -%}
+  NWS hard-wraps prose at ~70 chars: single newlines are line wrapping, blank
+  lines separate paragraphs ("* WHAT...", "* WHERE...", the appended
+  instruction). Liquid emits the raw text; here we collapse wrap-newlines and
+  rebuild paragraph breaks as <br> so each bullet starts on its own line.
+  Runs before the measurement script below, which sees the reflowed heights.
+  {%- endcomment -%}
+  document.querySelectorAll('.description[data-clamp]').forEach(function (el) {
+    var text = el.textContent.trim();
+    if (text.indexOf('\n') === -1) return;
+    var paragraphs = text.split(/\s*\n\s*\n\s*/);
+    el.textContent = '';
+    paragraphs.forEach(function (p, i) {
+      if (i) el.appendChild(document.createElement('br'));
+      el.appendChild(document.createTextNode(p.replace(/\s*\n\s*/g, ' ')));
+    });
+  });
+})();
+
+(function () {
+  {%- comment -%}
+  Grow description clamps to fill measured free space. Inline scripts run
+  before the framework clamp engine reads data-clamp, so we measure the real
+  container on whatever screen is rendering and raise each description's line
+  budget to divide the leftover height evenly. Only ever raises the baseline
+  (2 lines) — if anything here fails, today's behavior is unchanged.
+  {%- endcomment -%}
+  var container = document.querySelector('[data-overflow]');
+  if (!container) return;
+  var column = container.querySelector('.column');
+  var descs = Array.prototype.slice.call(container.querySelectorAll('.description[data-clamp]'));
+  if (!column || !descs.length) return;
+
+  {%- comment -%} Columns the overflow engine may split into on this screen {%- endcomment -%}
+  var attr = 'data-overflow-max-cols';
+  var maxCols = container.getAttribute(attr);
+  if (window.innerWidth >= 1024 && container.hasAttribute(attr + '-lg')) maxCols = container.getAttribute(attr + '-lg');
+  if (window.innerHeight > window.innerWidth && container.hasAttribute(attr + '-portrait')) maxCols = container.getAttribute(attr + '-portrait');
+  var cols = Math.max(1, Math.min(parseInt(maxCols, 10) || 1, descs.length));
+
+  {%- comment -%} Content height with descriptions at natural (unclamped) size {%- endcomment -%}
+  var children = Array.prototype.slice.call(column.children);
+  var contentPx = 0;
+  children.forEach(function (c) { contentPx += c.offsetHeight; });
+  var rowGap = parseFloat(getComputedStyle(column).rowGap) || 0;
+  contentPx += rowGap * Math.max(0, children.length - 1);
+
+  var descPx = 0;
+  descs.forEach(function (el) { descPx += el.offsetHeight; });
+  if (!descPx) return;
+
+  {%- comment -%} Pixels available for description text across all columns, minus a safety margin {%- endcomment -%}
+  var budget = container.clientHeight * cols - (contentPx - descPx) - 16;
+  if (budget <= 0) return;
+  var perDesc = budget / descs.length;
+
+  descs.forEach(function (el) {
+    var style = getComputedStyle(el);
+    var lineH = parseFloat(style.lineHeight) || (parseFloat(style.fontSize) * 1.4) || 20;
+    var lines = Math.floor(perDesc / lineH);
+    var current = parseInt(el.getAttribute('data-clamp'), 10) || 2;
+    if (lines <= current) return;
+    el.setAttribute('data-clamp', String(lines));
+    ['-sm', '-md', '-lg', '-portrait', '-md-portrait'].forEach(function (suffix) {
+      if (el.hasAttribute('data-clamp' + suffix)) el.setAttribute('data-clamp' + suffix, String(lines));
+    });
+  });
+})();
 </script>
 {% endtemplate %}
 
@@ -126,9 +197,14 @@ Parameters:
         {{ alert.properties.severity }}
       </span>
     </div>
-    <span class="description lg:description--large" data-clamp="2" data-clamp-lg="3">
-      {{ alert.properties.description }}
-    </span>
+    {%- comment -%}
+    Raw NWS newlines are emitted as-is (instruction appended after a blank
+    line); the paragraph-normalization script in `main` reads them from
+    textContent and rebuilds the block with real line breaks.
+    {%- endcomment -%}
+    <span class="description lg:description--large" data-clamp="2" data-clamp-lg="3">{{ alert.properties.description | strip }}{% if alert.properties.instruction and alert.properties.instruction != '' %}
+
+{{ alert.properties.instruction | strip }}{% endif %}</span>
     <div class="flex gap--small">
       <span class="label label--small label--underline">
         <span data-dt="{{ alert.properties.onset | date: '%s' }}" data-dt-style="{{ date_style }}"></span>
