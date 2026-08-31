@@ -145,12 +145,31 @@
   var descs = Array.prototype.slice.call(container.querySelectorAll('.description[data-clamp]'));
   if (!column || !descs.length) return;
 
-  {%- comment -%} True vertical budget: viewport minus everything above the list and the title_bar below it {%- endcomment -%}
-  var bar = document.querySelector('.title_bar');
-  var available = document.documentElement.clientHeight
-    - container.getBoundingClientRect().top
-    - (bar ? bar.offsetHeight : 0)
-    - 24;
+  {%- comment -%}
+  True vertical budget: from the top of the list to the bottom of the .layout
+  content box. The framework gives .layout a fixed CSS height per view type
+  (.view--quadrant .layout:has(+.title_bar) = quadrant-h - title bar, etc.),
+  so it is safe to measure. The viewport is NOT: the render browser is always
+  the full screen (800x480 / 1040x780), even for a quadrant or half view, so
+  budgeting off clientHeight over-expanded small layouts until the only item
+  no longer fit and the overflow engine hid it behind "and 1 more".
+  {%- endcomment -%}
+  var containerTop = container.getBoundingClientRect().top;
+  var layout = container.closest('.layout');
+  var available;
+  if (layout) {
+    var layoutStyle = getComputedStyle(layout);
+    available = layout.getBoundingClientRect().bottom
+      - (parseFloat(layoutStyle.paddingBottom) || 0)
+      - containerTop
+      - 4;
+  } else {
+    var bar = document.querySelector('.title_bar');
+    available = document.documentElement.clientHeight
+      - containerTop
+      - (bar ? bar.offsetHeight : 0)
+      - 24;
+  }
   if (available <= 0) return;
 
   {%- comment -%} Per-description metrics: line height, natural (unclamped) lines, baseline lines {%- endcomment -%}
