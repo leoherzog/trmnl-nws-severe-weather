@@ -1,0 +1,124 @@
+{%- comment -%}
+Text of the single layer in the Vestaboard Composer canvas (22x6, x 0, y 0, left aligned).
+Lists alerts active first, one row each with a severity color flap; spare rows become
+time lines in alert order, so every alert gets a row before any alert gets a time.
+Times are shown in each alert's own UTC offset, the local time of the alert area.
+{%- endcomment -%}
+{%- comment -%} Liquid string literals have no escape sequences, so the newline comes from url_decode {%- endcomment -%}
+{%- assign nl = '%0A' | url_decode -%}
+{%- comment -%} Vestaboard renders may not receive the trmnl object, so each read of it falls back to a default {%- endcomment -%}
+{%- assign now = trmnl.system.timestamp_utc | default: 'now' | date: '%s' | plus: 0 -%}
+{%- assign include_future = true -%}
+{%- assign future_setting = trmnl.plugin_settings.custom_fields_values.includefuture | append: '' | downcase -%}
+{%- if future_setting == 'false' -%}
+  {%- assign include_future = false -%}
+{%- endif -%}
+{%- assign time_fmt = '%-I:%M %p' -%}
+{%- if trmnl.plugin_settings.custom_fields_values.timemode == '24_hour' -%}
+  {%- assign time_fmt = '%H:%M' -%}
+{%- endif -%}
+
+{%- comment -%} Entries are "flap NAME^  UNTIL time" separated by '~'; NWS event names contain neither {%- endcomment -%}
+{%- assign list = '' -%}
+{%- for pass in (1..2) -%}
+  {%- for alert in features -%}
+    {%- assign onset_ts = alert.properties.onset | date: '%s' | plus: 0 -%}
+    {%- assign end_raw = alert.properties.ends | default: alert.properties.expires -%}
+    {%- assign ends_ts = end_raw | date: '%s' | plus: 0 -%}
+    {%- assign show = false -%}
+    {%- if pass == 1 and now >= onset_ts and now <= ends_ts -%}
+      {%- assign show = true -%}
+      {%- assign verb = '  UNTIL ' -%}
+      {%- assign when_raw = end_raw -%}
+      {%- assign when_ts = ends_ts -%}
+    {%- elsif pass == 2 and include_future and onset_ts > now -%}
+      {%- assign show = true -%}
+      {%- assign verb = '  STARTS ' -%}
+      {%- assign when_raw = alert.properties.onset -%}
+      {%- assign when_ts = onset_ts -%}
+    {%- endif -%}
+    {%- if show -%}
+      {%- case alert.properties.severity -%}
+        {%- when 'Extreme' -%}{%- assign flap = '{63}' -%}
+        {%- when 'Severe' -%}{%- assign flap = '{64}' -%}
+        {%- when 'Moderate' -%}{%- assign flap = '{65}' -%}
+        {%- when 'Minor' -%}{%- assign flap = '{67}' -%}
+        {%- else -%}{%- assign flap = '{69}' -%}
+      {%- endcase -%}
+
+      {%- comment -%} Names longer than the 20 cells after the flap get NWS-style abbreviations, then a hard cut {%- endcomment -%}
+      {%- assign name = alert.properties.event | upcase -%}
+      {%- assign name_size = name | size -%}
+      {%- if name_size > 20 -%}
+        {%- assign name = name | replace: 'SEVERE THUNDERSTORM', 'SVR T-STORM' | replace: 'HURRICANE FORCE', 'HURR FORCE' | replace: 'FREEZING SPRAY', 'FRZG SPRAY' | replace: 'WEATHER', 'WX' | replace: 'STATEMENT', 'STMT' -%}
+        {%- assign name_size = name | size -%}
+      {%- endif -%}
+      {%- if name_size > 20 -%}
+        {%- assign name = name | replace: ' ADVISORY', ' ADV' | replace: ' WARNING', ' WRN' -%}
+      {%- endif -%}
+      {%- assign name = name | slice: 0, 20 | strip -%}
+
+      {%- comment -%} Formatting the NWS string keeps its offset; the day check shifts both instants by that offset {%- endcomment -%}
+      {%- assign zone = when_raw | date: '%z' -%}
+      {%- assign zone_secs = zone | slice: 1, 2 | times: 3600 -%}
+      {%- assign zone_mins = zone | slice: 3, 2 | times: 60 -%}
+      {%- assign zone_secs = zone_secs | plus: zone_mins -%}
+      {%- assign zone_sign = zone | slice: 0, 1 -%}
+      {%- if zone_sign == '-' -%}
+        {%- assign zone_secs = zone_secs | times: -1 -%}
+      {%- endif -%}
+      {%- assign when_day = when_ts | plus: zone_secs | divided_by: 86400 -%}
+      {%- assign now_day = now | plus: zone_secs | divided_by: 86400 -%}
+      {%- assign when_time = when_raw | date: time_fmt -%}
+      {%- if when_day != now_day -%}
+        {%- assign when_time = when_raw | date: '%a ' | append: when_time -%}
+      {%- endif -%}
+
+      {%- if list != '' -%}
+        {%- assign list = list | append: '~' -%}
+      {%- endif -%}
+      {%- assign list = list | append: flap | append: ' ' | append: name | append: '^' | append: verb | append: when_time -%}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endfor -%}
+{%- assign entries = list | split: '~' -%}
+{%- assign count = entries | size -%}
+
+{%- if count == 0 -%}
+  {{- nl }}{{ nl -}}
+  {%- if include_future -%}
+    {{- 'NO ACTIVE OR UPCOMING' -}}
+  {%- else -%}
+    {{- '      NO ACTIVE' -}}
+  {%- endif -%}
+  {{- nl -}}SEVERE WEATHER ALERTS
+{%- else -%}
+  {%- comment -%} Past six alerts, the last row becomes "+N MORE" {%- endcomment -%}
+  {%- assign shown = count -%}
+  {%- assign more = 0 -%}
+  {%- if count > 6 -%}
+    {%- assign shown = 5 -%}
+    {%- assign more = count | minus: 5 -%}
+  {%- endif -%}
+  {%- assign used = shown -%}
+  {%- if more > 0 -%}
+    {%- assign used = used | plus: 1 -%}
+  {%- endif -%}
+  {%- assign detailed = 6 | minus: used -%}
+  {%- if detailed > shown -%}
+    {%- assign detailed = shown -%}
+  {%- endif -%}
+  {%- assign pad = 6 | minus: used | minus: detailed | divided_by: 2 -%}
+
+  {%- for i in (1..pad) -%}{{ nl }}{%- endfor -%}
+  {%- for entry in entries limit: shown -%}
+    {%- assign parts = entry | split: '^' -%}
+    {{- parts[0] | upcase -}}{{ nl }}
+    {%- if forloop.index <= detailed -%}
+      {{- parts[1] | upcase -}}{{ nl }}
+    {%- endif -%}
+  {%- endfor -%}
+  {%- if more > 0 -%}
+    {{- '  +' | append: more | append: ' MORE' -}}
+  {%- endif -%}
+{%- endif -%}
